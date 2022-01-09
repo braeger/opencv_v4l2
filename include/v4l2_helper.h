@@ -9,11 +9,7 @@
 #ifndef V4L2_HELPER_H
 #define V4L2_HELPER_H
 
-#define GET 1
-#define SET 2
 #include <linux/videodev2.h>
-
-#define ERR -128
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +32,7 @@ enum io_method {
  */
 
 /*
- * All functions return 0 on success and ERR ( a negative value) in case of failure.
+ * All functions return 0 on success and a negative value in case of failure.
  */
 
 int helper_init_cam(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth);

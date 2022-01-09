@@ -25,6 +25,7 @@
 #define NUM_BUFFS	4
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
+#define ERR -128 /* TODO: errors should be more specific */
 
 struct buffer {
 	void   *start;
