@@ -237,7 +237,9 @@ static int uninit_device(void)
 static int init_read(unsigned int buffer_size)
 {
 	//sizeof(*buffers) is NOT the number of buffers
-	//it's a compile time constant that's always
+	//it's a compile time constant that's always sizeof(struct buffer);
+	//https://godbolt.org/z/1oGzKdWEa
+
 	buffers = (struct buffer *) calloc(1, sizeof(*buffers));
 
 	if (!buffers) {
@@ -254,6 +256,28 @@ static int init_read(unsigned int buffer_size)
 	}
 
 	return 0;
+}
+
+static int init_mmap_unwind_errors()
+{
+	unsigned int curr_buf_to_free;
+	for (curr_buf_to_free = 0;
+		curr_buf_to_free < n_buffers;
+		curr_buf_to_free++)
+	{
+		if (
+			munmap(buffers[curr_buf_to_free].start,
+			buffers[curr_buf_to_free].length) != 0
+		)
+		{
+			/*
+			 * Errors ignored as mapping itself
+			 * failed for a buffer
+			 */
+		}
+	}
+	free(buffers);
+	return ERR;
 }
 
 static int init_mmap(void)
@@ -289,7 +313,6 @@ static int init_mmap(void)
 	}
 
 	for (n_buffers = 0; n_buffers < req.count; ++n_buffers) {
-		int loop_err = 0;
 		struct v4l2_buffer buf;
 
 		CLEAR(buf);
@@ -300,8 +323,7 @@ static int init_mmap(void)
 		if (-1 == xioctl(fd, VIDIOC_QUERYBUF, &buf))
 		{
 			fprintf(stderr, "Error occurred when querying buffer\n");
-			loop_err = 1;
-			goto LOOP_FREE_EXIT;
+			return init_mmap_unwind_errors();
 		}
 
 		buffers[n_buffers].length = buf.length;
@@ -314,31 +336,7 @@ static int init_mmap(void)
 
 		if (MAP_FAILED == buffers[n_buffers].start) {
 			fprintf(stderr, "Error occurred when mapping memory\n");
-			loop_err = 1;
-			goto LOOP_FREE_EXIT;
-		}
-
-LOOP_FREE_EXIT:
-		if (loop_err)
-		{
-			unsigned int curr_buf_to_free;
-			for (curr_buf_to_free = 0;
-				curr_buf_to_free < n_buffers;
-				curr_buf_to_free++)
-			{
-				if (
-					munmap(buffers[curr_buf_to_free].start,
-					buffers[curr_buf_to_free].length) != 0
-				)
-				{
-					/*
-					 * Errors ignored as mapping itself
-					 * failed for a buffer
-					 */
-				}
-			}
-			free(buffers);
-			return ERR;
+			return init_mmap_unwind_errors();
 		}
 	}
 
