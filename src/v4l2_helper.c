@@ -60,15 +60,6 @@ struct buffer {
 	size_t  length;
 };
 
-/**
- * FIXME: All the state for the library is maintained via global variables.
- * So, it's not possible to use this library to access multiple devices
- * simultaneously. This is done to simplify the process of assessment.
- *
- * Hint: To access multiple devices at the same time using this application,
- * the public helper functions can be made to accept a new structure, that holds
- * the global state, as parameter.
- */
 #define NUM_BUFFS	4
 
 struct _v4l2helper_cam_s
@@ -247,7 +238,7 @@ static int init_read(v4l2helper_cam_t* cam,unsigned int buffer_size)
 	//it's a compile time constant that's always sizeof(struct buffer);
 	//https://godbolt.org/z/1oGzKdWEa
 
-	cam->buffers = (struct buffer *) calloc(1, sizeof(*cam->buffers));
+	cam->buffers = (struct buffer *) calloc(1, sizeof(struct buffer));
 
 	if (!cam->buffers) {
 		fprintf(stderr, "Out of memory\n");
@@ -312,7 +303,7 @@ static int init_mmap(v4l2helper_cam_t* cam)
 		return ERR;
 	}
 
-	cam->buffers = (struct buffer *) calloc(req.count, sizeof(*cam->buffers));
+	cam->buffers = (struct buffer *) calloc(req.count, sizeof(struct buffer));
 
 	if (!cam->buffers) {
 		fprintf(stderr, "Out of memory\n");
@@ -368,7 +359,7 @@ static int init_userp(v4l2helper_cam_t* cam,unsigned int buffer_size)
 		return ERR;
 	}
 
-	cam->buffers = (struct buffer *) calloc(req.count, sizeof(*cam->buffers));
+	cam->buffers = (struct buffer *) calloc(req.count, sizeof(struct buffer));
 
 	if (!cam->buffers) {
 		fprintf(stderr, "Out of memory\n");

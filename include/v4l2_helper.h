@@ -47,18 +47,8 @@ enum io_method {
 
 typedef struct _v4l2helper_cam_s v4l2helper_cam_t;
 
-/**
- * FIXME: All the state for the library is maintained via global variables.
- * So, it's not possible to use this library to access multiple devices
- * simultaneously. This is done to simplify the process of assessment.
- *
- * Hint: To access multiple devices at the same time using this application,
- * the public helper functions can be made to accept a new structure, that holds
- * the global state, as parameter.
- */
-
 /*
- * All functions return 0 on success and a negative value in case of failure.
+ * All functions except the create return 0 on success and a negative value in case of failure.
  */
 
 v4l2helper_cam_t* v4l2helper_init_cam(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth);
