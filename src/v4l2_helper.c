@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <fcntl.h>              /* low-level i/o */
 #include <unistd.h>
@@ -586,6 +587,11 @@ int helper_deinit_cam()
 
 int helper_get_cam_frame(unsigned char **pointer_to_cam_data, int *size)
 {
+	return helper_get_cam_frame_with_framebuf(pointer_to_cam_data, size, NULL);
+}
+
+int helper_get_cam_frame_with_framebuf(unsigned char **pointer_to_cam_data, int *size, struct v4l2_buffer* buf)
+{
 	static unsigned char max_timeout_retries = 10;
 	unsigned char timeout_retries = 0;
 
@@ -647,6 +653,9 @@ int helper_get_cam_frame(unsigned char **pointer_to_cam_data, int *size)
 				default:
 					continue;
 			}
+		}
+		if (buf != NULL) {
+			*buf = frame_buf;
 		}
 		*pointer_to_cam_data = (unsigned char*) buffers[frame_buf.index].start;
 		*size = frame_buf.bytesused;

@@ -42,6 +42,7 @@ enum io_method {
 int helper_init_cam(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth);
 
 int helper_get_cam_frame(unsigned char** pointer_to_cam_data, int *size);
+int helper_get_cam_frame_with_framebuf(unsigned char** pointer_to_cam_data, int *size, struct v4l2_buffer* buf);
 
 int helper_release_cam_frame();
 
@@ -49,7 +50,7 @@ int helper_deinit_cam();
 
 //int helper_change_cam_res(unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth);
 
-//int helper_ctrl(unsigned int, int,int*);
+int helper_ctrl(unsigned int id, int64_t val);
 
 //int helper_queryctrl(unsigned int,struct v4l2_queryctrl* );
 
