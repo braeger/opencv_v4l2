@@ -35,3 +35,4 @@
 *.swp
 
 build/*
+test/Cimg.h

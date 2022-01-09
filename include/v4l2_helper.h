@@ -12,6 +12,7 @@
 #define GET 1
 #define SET 2
 #include <linux/videodev2.h>
+#include <stdint.h>
 
 #define ERR -128
 

@@ -36,3 +36,7 @@ install (FILES ${V4L2_HELPER_LIB_INCLUDE_DIR}/v4l2_helper.h DESTINATION ${V4L2_H
 #    add_custom_target(uninstall
 #        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
 #endif()
+
+# Video test:
+add_executable(v4l2_webcam ${CMAKE_CURRENT_SOURCE_DIR}/test/v4l2_webcam.cpp ${CMAKE_CURRENT_SOURCE_DIR}/test/CImg.h)
+target_link_libraries(v4l2_webcam v4l2_helper X11 pthread jpeg)
