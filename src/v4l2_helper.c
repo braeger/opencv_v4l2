@@ -589,7 +589,7 @@ v4l2helper_cam_t* v4l2helper_init_cam(const char* devname, unsigned int width, u
 
 int v4l2helper_deinit_cam(v4l2helper_cam_t* cam)
 {
-	if (!cam->is_initialised)
+	if (cam == NULL || !cam->is_initialised)
 	{
 		fprintf(stderr, "Error: trying to de-initialise without initialising camera\n");
 		return ERR;
@@ -610,6 +610,10 @@ int v4l2helper_deinit_cam(v4l2helper_cam_t* cam)
 	{
 		fprintf(stderr, "Error occurred when de-initialising camera\n");
 		return ERR;
+	}
+	if(cam!=NULL)
+	{
+		free(cam);
 	}
 
 	return 0;
