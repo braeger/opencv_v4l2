@@ -32,7 +32,7 @@ int main(int argc, char **argv)
 	CImg<unsigned char> visu(width,height,1,4,0);
 	CImgDisplay main_disp(visu,"preview");
 
-	v4l2helper_capture_t* cam=v4l2helper_cam_open(videodev.c_str(), width, height, pix_format, IO_method);
+	v4l2helper_capture_t* cam=v4l2helper_cam_open(videodev.c_str(), width, height, pix_format, IO_method,0);
 
 	if (!cam)
 	{
@@ -40,20 +40,22 @@ int main(int argc, char **argv)
 	}
 
 	unsigned int start = GetTickCount(), end, fps = 0;
-	unsigned char* ptr_cam_frame;
+	unsigned char* ptr_data;
 	main_disp.show();
 	while(!main_disp.is_closed())
 	{
 		main_disp.wait(33);
 		int bytes_used;
-		if (v4l2helper_cam_get_frame(cam,&ptr_cam_frame, &bytes_used) < 0)
+		v4l2helper_frame_t* frame;
+		if (v4l2helper_cam_get_frame(cam,&frame) < 0)
 		{
 			break;
 		}
+		v4l2helper_frame_get_data(frame,&ptr_data,&bytes_used);
 		cout << "BYTES USED: " << bytes_used << std::endl;
 
 
-		visu.assign(ptr_cam_frame,3,width,height,1);
+		visu.assign(ptr_data,3,width,height,1);
 		if(visu.empty())
 		{
 			cout << "Img load failed" << endl;
@@ -63,8 +65,8 @@ int main(int argc, char **argv)
 //		visu.save("frame.jpg");
 		main_disp.display(visu);
 
-		// Must be called for every helper_get_cam_frame()
-		if (v4l2helper_frame_release(cam) < 0)
+		// Must be called for every frame
+		if (v4l2helper_frame_release(frame) < 0)
 		{
 			break;
 		}
