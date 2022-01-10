@@ -64,6 +64,7 @@ v4l2helper_capture_t* v4l2helper_cam_open(
 
 int v4l2helper_cam_get_frame(v4l2helper_capture_t* cam,v4l2helper_frame_t** pointer_to_frame);
 
+int v4l2helper_frame_get_v4l2_buffer(v4l2helper_frame_t *frame, struct v4l2_buffer** pointer_to_buffer);
 int v4l2helper_frame_get_data(v4l2helper_frame_t* frame,unsigned char** pointer_to_cam_data, int* size);
 int v4l2helper_frame_release(v4l2helper_frame_t* frame);
 

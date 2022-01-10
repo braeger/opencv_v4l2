@@ -739,6 +739,20 @@ int v4l2helper_frame_get_data(v4l2helper_frame_t *frame, unsigned char **pointer
 	return 0;
 }
 
+int v4l2helper_frame_get_v4l2_buffer(v4l2helper_frame_t *frame, struct v4l2_buffer** pointer_to_buffer)
+{
+	if(frame->is_released)
+	{
+		fprintf(stderr,"Error, tried to get buffer from a frame that has been released");
+		return ERR;
+	}
+	if(pointer_to_buffer != NULL)
+	{
+		*pointer_to_buffer = &frame->frame_buf;
+	}
+	return 0;
+}
+
 int v4l2helper_frame_release(v4l2helper_frame_t* frame)
 {
 	v4l2helper_capture_t* cam=frame->cam;
