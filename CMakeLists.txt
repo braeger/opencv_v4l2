@@ -9,7 +9,6 @@ add_library (v4l2_helper
 
 target_include_directories (v4l2_helper PUBLIC include)
 
-
 set_target_properties (
 	v4l2_helper PROPERTIES
 	PUBLIC_HEADER include/v4l2_helper.h

@@ -47,6 +47,7 @@ enum io_method {
 
 typedef struct _v4l2helper_cam_s v4l2helper_cam_t;
 
+
 /*
  * All functions except the create return 0 on success and a negative value in case of failure.
  */
