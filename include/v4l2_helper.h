@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define V4L2_v4l2helper_H
 
 #include <linux/videodev2.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

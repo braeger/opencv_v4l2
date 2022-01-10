@@ -33,3 +33,6 @@
 
 # Swap files
 *.swp
+
+build/*
+test/Cimg.h
