@@ -168,15 +168,14 @@ static int start_capturing(v4l2helper_capture_t* cam)
 
 		case IO_METHOD_MMAP:
 			for (i = 0; i < cam->n_frames; ++i) {
-				struct v4l2_buffer buf;
+				struct v4l2_buffer queue_buf;
 
-				CLEAR(buf);
-				buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-				buf.memory = V4L2_MEMORY_MMAP;
-				buf.index = i;
-				cam->frames[i].is_released=1;
+				CLEAR(queue_buf);
+				queue_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+				queue_buf.memory = V4L2_MEMORY_MMAP;
+				queue_buf.index = i;
 
-				if (-1 == xioctl(cam->fd, VIDIOC_QBUF, &buf))
+				if (-1 == xioctl(cam->fd, VIDIOC_QBUF, &queue_buf))
 				{
 					fprintf(stderr, "Error occurred when queueing buffer\n");
 					return ERR;
@@ -192,16 +191,18 @@ static int start_capturing(v4l2helper_capture_t* cam)
 
 		case IO_METHOD_USERPTR:
 			for (i = 0; i < cam->n_frames; ++i) {
-				struct v4l2_buffer buf;
+				struct v4l2_buffer queue_buf;
 
-				CLEAR(buf);
-				buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-				buf.memory = V4L2_MEMORY_USERPTR;
-				buf.index = i;
-				buf.m.userptr = (unsigned long)(cam->frames[i].buf.start);
-				buf.length = cam->frames[i].buf.length;
+				CLEAR(queue_buf);
+				queue_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+				queue_buf.memory = V4L2_MEMORY_USERPTR;
+				queue_buf.index = i;
+				queue_buf.m.userptr = (unsigned long)(cam->frames[i].buf.start);
+				queue_buf.length = cam->frames[i].buf.length;
+				cam->frames[cam->n_frames].frame_buf=queue_buf;
 
-				if (-1 == xioctl(cam->fd, VIDIOC_QBUF, &buf))
+
+				if (-1 == xioctl(cam->fd, VIDIOC_QBUF, &queue_buf))
 				{
 					fprintf(stderr, "Error occurred when queueing buffer\n");
 					return ERR;
@@ -321,26 +322,27 @@ static int init_mmap(v4l2helper_capture_t* cam,unsigned int num_requested_buffs)
 	}
 
 	for (cam->n_frames = 0; cam->n_frames < req.count; ++cam->n_frames) {
-		struct v4l2_buffer buf;
+		struct v4l2_buffer init_buf;
 
-		CLEAR(buf);
-		buf.type        = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		buf.memory      = V4L2_MEMORY_MMAP;
-		buf.index       = cam->n_frames;
+		CLEAR(init_buf);
+		init_buf.type        = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		init_buf.memory      = V4L2_MEMORY_MMAP;
+		init_buf.index       = cam->n_frames;
 
-		if (-1 == xioctl(cam->fd, VIDIOC_QUERYBUF, &buf))
+		if (-1 == xioctl(cam->fd, VIDIOC_QUERYBUF, &init_buf))
 		{
 			fprintf(stderr, "Error occurred when querying buffer\n");
 			return init_mmap_unwind_errors(cam);
 		}
 
-		cam->frames[cam->n_frames].buf.length = buf.length;
+		cam->frames[cam->n_frames].buf.length = init_buf.length;
 		cam->frames[cam->n_frames].buf.start =
 			mmap(NULL /* start anywhere */,
-					buf.length,
+					init_buf.length,
 					PROT_READ | PROT_WRITE /* required */,
 					MAP_SHARED /* recommended */,
-					cam->fd, buf.m.offset);
+					cam->fd, init_buf.m.offset);
+		cam->frames[cam->n_frames].frame_buf=init_buf;
 
 		if (MAP_FAILED == cam->frames[cam->n_frames].buf.start) {
 			fprintf(stderr, "Error occurred when mapping memory\n");
@@ -501,19 +503,26 @@ static int init_device(v4l2helper_capture_t* cam,unsigned int width, unsigned in
 	if (fmt.fmt.pix.sizeimage < min)
 		fmt.fmt.pix.sizeimage = min;
 
+	int init_result=0;
 	switch (cam->io) {
 		case IO_METHOD_READ:
-			return init_read(cam,fmt.fmt.pix.sizeimage,num_requested_buffers);
+			init_result=init_read(cam,fmt.fmt.pix.sizeimage,num_requested_buffers);
 			break;
 
 		case IO_METHOD_MMAP:
-			return init_mmap(cam,num_requested_buffers);
+			init_result=init_mmap(cam,num_requested_buffers);
 			break;
 
 		case IO_METHOD_USERPTR:
-			return init_userp(cam,fmt.fmt.pix.sizeimage,num_requested_buffers);
+			init_result=init_userp(cam,fmt.fmt.pix.sizeimage,num_requested_buffers);
 			break;
+	};
+	for(unsigned int i=0;i < cam->n_frames; ++i)
+	{
+		cam->frames[i].cam=cam;
+		cam->frames[i].is_released=1;
 	}
+
 
 	return 0;
 }
@@ -676,19 +685,8 @@ int v4l2helper_cam_get_frame(v4l2helper_capture_t *cam, v4l2helper_frame_t **poi
 		CLEAR(ret_buf);
 		ret_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-		if (-1 == xioctl(cam->fd, VIDIOC_DQBUF, &ret_buf)) {
-			switch (errno) {
-				case EAGAIN:
-					continue;
-
-				case EIO:
-					/* Could ignore EIO, see spec. */
-
-					/* fall through */
-
-				default:
-					continue;
-			}
+		if (-1 != xioctl(cam->fd, VIDIOC_DQBUF, &ret_buf)) {
+			break; //if success, break and quit the loop.
 		}
 	}
 
