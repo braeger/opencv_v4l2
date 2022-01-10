@@ -32,7 +32,7 @@ int main(int argc, char **argv)
 	CImg<unsigned char> visu(width,height,1,4,0);
 	CImgDisplay main_disp(visu,"preview");
 
-	v4l2helper_cam_t* cam=v4l2helper_init_cam(videodev.c_str(), width, height, pix_format, IO_method);
+	v4l2helper_capture_t* cam=v4l2helper_cam_open(videodev.c_str(), width, height, pix_format, IO_method);
 
 	if (!cam)
 	{
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 	{
 		main_disp.wait(33);
 		int bytes_used;
-		if (v4l2helper_get_cam_frame(cam,&ptr_cam_frame, &bytes_used) < 0)
+		if (v4l2helper_cam_get_frame(cam,&ptr_cam_frame, &bytes_used) < 0)
 		{
 			break;
 		}
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 		main_disp.display(visu);
 
 		// Must be called for every helper_get_cam_frame()
-		if (v4l2helper_release_cam_frame(cam) < 0)
+		if (v4l2helper_frame_release(cam) < 0)
 		{
 			break;
 		}
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 		}
 	}
 	main_disp.close();
-	if (v4l2helper_deinit_cam(cam) < 0)
+	if (v4l2helper_cam_close(cam) < 0)
 	{
 		throw std::runtime_error("Could not close connection to camera.");
 	}

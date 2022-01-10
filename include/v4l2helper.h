@@ -46,25 +46,32 @@ enum io_method {
 	IO_METHOD_USERPTR
 };
 
-typedef struct _v4l2helper_cam_s v4l2helper_cam_t;
-
+typedef struct _v4l2helper_capture_s v4l2helper_capture_t;
+typedef struct _v4l2helper_frame_s v4l2helper_frame_t;
 
 /*
  * All functions except the create return 0 on success and a negative value in case of failure.
  */
 
-v4l2helper_cam_t* v4l2helper_init_cam(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth);
+v4l2helper_capture_t* v4l2helper_cam_open(
+		const char* const devname,
+		unsigned int width,
+		unsigned int height,
+		unsigned int format,
+		enum io_method io_meth,
+		unsigned int num_requested_buffers
+);
 
-int v4l2helper_get_cam_frame(v4l2helper_cam_t* cam,unsigned char** pointer_to_cam_data, int *size);
-int v4l2helper_get_cam_frame_with_framebuf(v4l2helper_cam_t* cam,unsigned char** pointer_to_cam_data, int *size, struct v4l2_buffer* buf);
+int v4l2helper_cam_get_frame(v4l2helper_capture_t* cam,unsigned char** pointer_to_cam_data, int *size);
+int v4l2helper_cam_get_frame_with_framebuf(v4l2helper_capture_t* cam,unsigned char** const pointer_to_cam_data, int *size, struct v4l2_buffer* buf);
 
-int v4l2helper_release_cam_frame(v4l2helper_cam_t* cam);
+int v4l2helper_frame_release(v4l2helper_frame_t* cam);
 
-int v4l2helper_deinit_cam(v4l2helper_cam_t* cam);
+int v4l2helper_cam_close(v4l2helper_capture_t* cam);
 
 //int v4l2helper_change_cam_res(unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth);
 
-int v4l2helper_ctrl(v4l2helper_cam_t* cam,unsigned int id, int64_t val);
+int v4l2helper_ctrl(v4l2helper_capture_t* cam,unsigned int id, int64_t val);
 
 //int v4l2helper_queryctrl(unsigned int,struct v4l2_queryctrl* );
 

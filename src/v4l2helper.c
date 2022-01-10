@@ -60,16 +60,31 @@ struct buffer {
 	size_t  length;
 };
 
-#define NUM_BUFFS	4
 
-struct _v4l2helper_cam_s
+/*
+struct _v4l2helper_frame_vtable{
+	int (*init)(v4l2helper_frame_t* frame,int fd,uint32_t caps,unsigned int index);
+	int
+};
+
+struct _v4l2helper_capture_vtable{
+
+};*/
+
+struct _v4l2helper_frame_s{
+	struct v4l2_buffer frame_buf;
+	struct buffer buf;
+	const v4l2helper_capture_t* const cam; //todo: frames can be hosted in the capture queue OR the output queue.
+	bool is_released;
+};
+struct _v4l2helper_capture_s
 {
+	struct v4l2_capability cap;
 	enum io_method   io;
 	int              fd;
-	struct buffer    *buffers;
-	unsigned int     n_buffers;
-	struct v4l2_buffer frame_buf;
-	bool is_initialised, is_released;
+	v4l2helper_frame_t    *frames;
+	unsigned int     n_frames;	//the number of actual frames in the frame queue
+	bool is_initialised;
 };
 
 
@@ -88,7 +103,7 @@ static int xioctl(int fh, unsigned long request, void *arg)
 	return r;
 }
 
-static int set_io_method(v4l2helper_cam_t* cam,enum io_method io_meth)
+static int set_io_method(v4l2helper_capture_t* cam,enum io_method io_meth)
 {
 	switch (io_meth)
 	{
@@ -103,7 +118,7 @@ static int set_io_method(v4l2helper_cam_t* cam,enum io_method io_meth)
 	}
 }
 
-static int stop_capturing(v4l2helper_cam_t* cam)
+static int stop_capturing(v4l2helper_capture_t* cam)
 {
 	enum v4l2_buf_type type;
 	struct v4l2_requestbuffers req;
@@ -144,7 +159,7 @@ static int stop_capturing(v4l2helper_cam_t* cam)
 	return 0;
 }
 
-static int start_capturing(v4l2helper_cam_t* cam)
+static int start_capturing(v4l2helper_capture_t* cam)
 {
 	unsigned int i;
 	enum v4l2_buf_type type;
@@ -155,7 +170,7 @@ static int start_capturing(v4l2helper_cam_t* cam)
 			break;
 
 		case IO_METHOD_MMAP:
-			for (i = 0; i < cam->n_buffers; ++i) {
+			for (i = 0; i < cam->n_frames; ++i) {
 				struct v4l2_buffer buf;
 
 				CLEAR(buf);
@@ -178,7 +193,7 @@ static int start_capturing(v4l2helper_cam_t* cam)
 			break;
 
 		case IO_METHOD_USERPTR:
-			for (i = 0; i < cam->n_buffers; ++i) {
+			for (i = 0; i < cam->n_frames; ++i) {
 				struct v4l2_buffer buf;
 
 				CLEAR(buf);
@@ -206,7 +221,7 @@ static int start_capturing(v4l2helper_cam_t* cam)
 	return 0;
 }
 
-static int uninit_device(v4l2helper_cam_t* cam)
+static int uninit_device(v4l2helper_capture_t* cam)
 {
 	unsigned int i;
 	int ret = 0;
@@ -217,13 +232,13 @@ static int uninit_device(v4l2helper_cam_t* cam)
 			break;
 
 		case IO_METHOD_MMAP:
-			for (i = 0; i < cam->n_buffers; ++i)
+			for (i = 0; i < cam->n_frames; ++i)
 				if (-1 == munmap(cam->buffers[i].start, cam->buffers[i].length))
 					ret = ERR;
 			break;
 
 		case IO_METHOD_USERPTR:
-			for (i = 0; i < cam->n_buffers; ++i)
+			for (i = 0; i < cam->n_frames; ++i)
 				free(cam->buffers[i].start);
 			break;
 	}
@@ -232,18 +247,15 @@ static int uninit_device(v4l2helper_cam_t* cam)
 	return ret;
 }
 
-static int init_read(v4l2helper_cam_t* cam,unsigned int buffer_size)
+static int init_read(v4l2helper_capture_t* cam,unsigned int buffer_size,unsigned int num_requested_buffers)
 {
-	//sizeof(*cam->buffers) is NOT the number of cam->buffers
-	//it's a compile time constant that's always sizeof(struct buffer);
-	//https://godbolt.org/z/1oGzKdWEa
-
-	cam->buffers = (struct buffer *) calloc(1, sizeof(struct buffer));
+	cam->buffers = (v4l2helper_frame_t *) calloc(1, sizeof(v4l2helper_frame_t));
 
 	if (!cam->buffers) {
 		fprintf(stderr, "Out of memory\n");
 		return ERR;
 	}
+	cam->n_frames = 1;
 
 	cam->buffers[0].length = buffer_size;
 	cam->buffers[0].start = malloc(buffer_size);
@@ -256,11 +268,11 @@ static int init_read(v4l2helper_cam_t* cam,unsigned int buffer_size)
 	return 0;
 }
 
-static int init_mmap_unwind_errors(v4l2helper_cam_t* cam)
+static int init_mmap_unwind_errors(v4l2helper_capture_t* cam)
 {
 	unsigned int curr_buf_to_free;
 	for (curr_buf_to_free = 0;
-		curr_buf_to_free < cam->n_buffers;
+		curr_buf_to_free < cam->n_frames;
 		curr_buf_to_free++)
 	{
 		if (
@@ -278,14 +290,14 @@ static int init_mmap_unwind_errors(v4l2helper_cam_t* cam)
 	return ERR;
 }
 
-static int init_mmap(v4l2helper_cam_t* cam)
+static int init_mmap(v4l2helper_capture_t* cam,unsigned int num_requested_buffs)
 {
 	struct v4l2_requestbuffers req;
 	int ret = 0;
 
 	CLEAR(req);
 
-	req.count = NUM_BUFFS;
+	req.count = num_requested_buffs;
 	req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_MMAP;
 
@@ -303,20 +315,20 @@ static int init_mmap(v4l2helper_cam_t* cam)
 		return ERR;
 	}
 
-	cam->buffers = (struct buffer *) calloc(req.count, sizeof(struct buffer));
+	cam->buffers = (v4l2helper_frame_t *) calloc(req.count, sizeof(v4l2helper_frame_t));
 
 	if (!cam->buffers) {
 		fprintf(stderr, "Out of memory\n");
 		return ERR;
 	}
 
-	for (cam->n_buffers = 0; cam->n_buffers < req.count; ++cam->n_buffers) {
+	for (cam->n_frames = 0; cam->n_frames < req.count; ++cam->n_frames) {
 		struct v4l2_buffer buf;
 
 		CLEAR(buf);
 		buf.type        = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		buf.memory      = V4L2_MEMORY_MMAP;
-		buf.index       = cam->n_buffers;
+		buf.index       = cam->n_frames;
 
 		if (-1 == xioctl(cam->fd, VIDIOC_QUERYBUF, &buf))
 		{
@@ -324,15 +336,15 @@ static int init_mmap(v4l2helper_cam_t* cam)
 			return init_mmap_unwind_errors(cam);
 		}
 
-		cam->buffers[cam->n_buffers].length = buf.length;
-		cam->buffers[cam->n_buffers].start =
+		cam->buffers[cam->n_frames].length = buf.length;
+		cam->buffers[cam->n_frames].start =
 			mmap(NULL /* start anywhere */,
 					buf.length,
 					PROT_READ | PROT_WRITE /* required */,
 					MAP_SHARED /* recommended */,
 					cam->fd, buf.m.offset);
 
-		if (MAP_FAILED == cam->buffers[cam->n_buffers].start) {
+		if (MAP_FAILED == cam->buffers[cam->n_frames].start) {
 			fprintf(stderr, "Error occurred when mapping memory\n");
 			return init_mmap_unwind_errors(cam);
 		}
@@ -341,13 +353,13 @@ static int init_mmap(v4l2helper_cam_t* cam)
 	return ret;
 }
 
-static int init_userp(v4l2helper_cam_t* cam,unsigned int buffer_size)
+static int init_userp(v4l2helper_capture_t* cam,unsigned int buffer_size,unsigned int num_requested_bufs)
 {
 	struct v4l2_requestbuffers req;
 
 	CLEAR(req);
 
-	req.count  = NUM_BUFFS;
+	req.count  = num_requested_bufs;
 	req.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_USERPTR;
 
@@ -359,23 +371,23 @@ static int init_userp(v4l2helper_cam_t* cam,unsigned int buffer_size)
 		return ERR;
 	}
 
-	cam->buffers = (struct buffer *) calloc(req.count, sizeof(struct buffer));
+	cam->buffers = (v4l2helper_frame_t *) calloc(req.count, sizeof(v4l2helper_frame_t));
 
 	if (!cam->buffers) {
 		fprintf(stderr, "Out of memory\n");
 		return ERR;
 	}
 
-	for (cam->n_buffers = 0; cam->n_buffers < req.count; ++cam->n_buffers) {
-		cam->buffers[cam->n_buffers].length = buffer_size;
-		if(posix_memalign(&cam->buffers[cam->n_buffers].start,getpagesize(),buffer_size) != 0)
+	for (cam->n_frames = 0; cam->n_frames < req.count; ++cam->n_frames) {
+		cam->buffers[cam->n_frames].length = buffer_size;
+		if(posix_memalign(&cam->buffers[cam->n_frames].start,getpagesize(),buffer_size) != 0)
 		{
 			/*
 			 * This happens only in case of ENOMEM
 			 */
 			unsigned int curr_buf_to_free;
 			for (curr_buf_to_free = 0;
-				curr_buf_to_free < cam->n_buffers;
+				curr_buf_to_free < cam->n_frames;
 				curr_buf_to_free++
 			)
 			{
@@ -390,15 +402,14 @@ static int init_userp(v4l2helper_cam_t* cam,unsigned int buffer_size)
 	return 0;
 }
 
-static int init_device(v4l2helper_cam_t* cam,unsigned int width, unsigned int height, unsigned int format)
+static int init_device(v4l2helper_capture_t* cam,unsigned int width, unsigned int height, unsigned int format,unsigned int num_requested_buffers)
 {
-	struct v4l2_capability cap;
 	struct v4l2_cropcap cropcap;
 	struct v4l2_crop crop;
 	struct v4l2_format fmt;
 	unsigned int min;
 
-	if (-1 == xioctl(cam->fd, VIDIOC_QUERYCAP, &cap)) {
+	if (-1 == xioctl(cam->fd, VIDIOC_QUERYCAP, &cam->cap)) {
 		if (EINVAL == errno) {
 			fprintf(stderr, "Given device is no V4L2 device\n");
 		}
@@ -406,14 +417,14 @@ static int init_device(v4l2helper_cam_t* cam,unsigned int width, unsigned int he
 		return ERR;
 	}
 
-	if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
+	if (!(cam->cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
 		fprintf(stderr, "Given device is no video capture device\n");
 		return ERR;
 	}
 
 	switch (cam->io) {
 		case IO_METHOD_READ:
-			if (!(cap.capabilities & V4L2_CAP_READWRITE)) {
+			if (!(cam->cap.capabilities & V4L2_CAP_READWRITE)) {
 				fprintf(stderr, "Given device does not "
 						"support read i/o\n");
 				return ERR;
@@ -422,7 +433,7 @@ static int init_device(v4l2helper_cam_t* cam,unsigned int width, unsigned int he
 
 		case IO_METHOD_MMAP:
 		case IO_METHOD_USERPTR:
-			if (!(cap.capabilities & V4L2_CAP_STREAMING)) {
+			if (!(cam->cap.capabilities & V4L2_CAP_STREAMING)) {
 				fprintf(stderr, "Given device does not "
 						"support streaming i/o\n");
 				return ERR;
@@ -471,8 +482,8 @@ static int init_device(v4l2helper_cam_t* cam,unsigned int width, unsigned int he
 
 	/* Note VIDIOC_S_FMT may change width and height. */
 
-	printf("pixfmt = %c %c %c %c \n", (fmt.fmt.pix.pixelformat & 0x000000ff) , (fmt.fmt.pix.pixelformat & 0x0000ff00) >>8 , (fmt.fmt.pix.pixelformat & 0x00ff0000) >>16, (fmt.fmt.pix.pixelformat & 0xff000000) >>24 );
-	printf("width = %d height = %d\n",fmt.fmt.pix.width,fmt.fmt.pix.height);
+	fprintf(stderr,"pixfmt = %c %c %c %c \n", (fmt.fmt.pix.pixelformat & 0x000000ff) , (fmt.fmt.pix.pixelformat & 0x0000ff00) >>8 , (fmt.fmt.pix.pixelformat & 0x00ff0000) >>16, (fmt.fmt.pix.pixelformat & 0xff000000) >>24 );
+	fprintf(stderr,"width = %d height = %d\n",fmt.fmt.pix.width,fmt.fmt.pix.height);
 
 	if (
 		fmt.fmt.pix.width != width ||
@@ -494,22 +505,22 @@ static int init_device(v4l2helper_cam_t* cam,unsigned int width, unsigned int he
 
 	switch (cam->io) {
 		case IO_METHOD_READ:
-			return init_read(cam,fmt.fmt.pix.sizeimage);
+			return init_read(cam,fmt.fmt.pix.sizeimage,num_requested_buffers);
 			break;
 
 		case IO_METHOD_MMAP:
-			return init_mmap(cam);
+			return init_mmap(cam,num_requested_buffers);
 			break;
 
 		case IO_METHOD_USERPTR:
-			return init_userp(cam,fmt.fmt.pix.sizeimage);
+			return init_userp(cam,fmt.fmt.pix.sizeimage,num_requested_buffers);
 			break;
 	}
 
 	return 0;
 }
 
-static int close_device(v4l2helper_cam_t* cam)
+static int close_device(v4l2helper_capture_t* cam)
 {
 	if (-1 == close(cam->fd))
 	{
@@ -522,7 +533,7 @@ static int close_device(v4l2helper_cam_t* cam)
 	return 0;
 }
 
-static int open_device(v4l2helper_cam_t* cam,const char *dev_name)
+static int open_device(v4l2helper_capture_t* cam,const char *dev_name)
 {
 	struct stat st;
 
@@ -555,18 +566,22 @@ static int open_device(v4l2helper_cam_t* cam,const char *dev_name)
 /**
  * Start of public helper functions
  */
-v4l2helper_cam_t* v4l2helper_init_cam(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth)
+v4l2helper_capture_t* v4l2helper_cam_open(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth,unsigned int num_requested_buffers)
 {
 
-	v4l2helper_cam_t* cam=(v4l2helper_cam_t*)malloc(sizeof(v4l2helper_cam_t));
+	if(num_requested_buffers == 0)
+	{
+		num_requested_buffers=4;
+	}
+	v4l2helper_capture_t* cam=(v4l2helper_capture_t*)malloc(sizeof(v4l2helper_capture_t));
 	cam->is_initialised=0;
-	cam->is_released=1;
+	//cam->is_released=1;
 	cam->fd = -1;
 
 	if(
 		set_io_method(cam,io_meth) < 0 ||
 		open_device(cam,devname) < 0 ||
-		init_device(cam,width,height,format) < 0 ||
+		init_device(cam,width,height,format,num_requested_buffers) < 0 ||
 		start_capturing(cam) < 0
 	)
 	{
@@ -578,7 +593,7 @@ v4l2helper_cam_t* v4l2helper_init_cam(const char* devname, unsigned int width, u
 	return cam;
 }
 
-int v4l2helper_deinit_cam(v4l2helper_cam_t* cam)
+int v4l2helper_cam_close(v4l2helper_capture_t* cam)
 {
 	if (cam == NULL || !cam->is_initialised)
 	{
@@ -610,15 +625,15 @@ int v4l2helper_deinit_cam(v4l2helper_cam_t* cam)
 	return 0;
 }
 
-int v4l2helper_get_cam_frame(v4l2helper_cam_t* cam,unsigned char **pointer_to_cam_data, int *size)
+int v4l2helper_cam_get_frame(v4l2helper_capture_t* cam,unsigned char **pointer_to_cam_data, int *size)
 {
-	return v4l2helper_get_cam_frame_with_framebuf(cam,pointer_to_cam_data, size, NULL);
+	return v4l2helper_cam_get_frame_with_framebuf(cam,pointer_to_cam_data, size, NULL);
 }
 
-int v4l2helper_get_cam_frame_with_framebuf(v4l2helper_cam_t* cam,unsigned char **pointer_to_cam_data, int *size, struct v4l2_buffer* buf)
+int v4l2helper_cam_get_frame_with_framebuf(v4l2helper_capture_t* cam,unsigned char **pointer_to_cam_data, int *size, struct v4l2_buffer* buf)
 {
-	static unsigned char max_timeout_retries = 10;
-	unsigned char timeout_retries = 0;
+	static const unsigned int max_timeout_retries = 10;
+	unsigned int timeout_retries = 0;
 
 	if (!cam->is_initialised)
 	{
@@ -626,11 +641,12 @@ int v4l2helper_get_cam_frame_with_framebuf(v4l2helper_cam_t* cam,unsigned char *
 		return ERR;
 	}
 
+	/* TODO, should this error or stall? I think it should definitely stall instead (timeout)
 	if (!cam->is_released)
 	{
 		fprintf (stderr, "Error: trying to get another frame without releasing already obtained frame\n");
 		return ERR;
-	}
+	}*/
 
 	for (;;) {
 		fd_set fds;
@@ -688,19 +704,20 @@ int v4l2helper_get_cam_frame_with_framebuf(v4l2helper_cam_t* cam,unsigned char *
 		/* EAGAIN - continue select loop. */
 	}
 
-	cam->is_released = 0;
+	//cam->is_released = 0;
 	return 0;
 }
 
-int v4l2helper_release_cam_frame(v4l2helper_cam_t* cam)
+int v4l2helper_frame_release(v4l2helper_frame_t* frame)
 {
+	v4l2helper_capture_t* cam=frame->cam;
 	if (!cam->is_initialised)
 	{
 		fprintf (stderr, "Error: trying to release frame without successfully initialising camera\n");
 		return ERR;
 	}
 
-	if (cam->is_released)
+	if (frame->is_released)
 	{
 		fprintf (stderr, "Error: trying to release already released frame\n");
 		return ERR;
@@ -719,7 +736,7 @@ int v4l2helper_release_cam_frame(v4l2helper_cam_t* cam)
 	 * Assuming it to be released in case an error occurs causes issues
 	 * such as the loss of a buffer, etc.
 	 */
-	cam->is_released = 1;
+	frame->is_released = 1;
 	return 0;
 }
 
@@ -803,7 +820,7 @@ int v4l2helper_ctrl(unsigned int id, int flag,int* value)
 		ctrl.value = *value;
 	}
 	if (-1 == xioctl(cam->fd, ioctl_num, &ctrl)) {
-		printf("Error GET/SET\n");
+		fprintf(stderr,"Error GET/SET\n");
 		return -1;
 	}
 
