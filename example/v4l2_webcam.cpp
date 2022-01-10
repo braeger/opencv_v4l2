@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <string>
 #define cimg_use_jpeg
+
+
 #include "CImg.h"
 using namespace cimg_library;
 using namespace std;
