@@ -21,6 +21,6 @@ install (TARGETS v4l2helper
 		COMPONENT dev
 )
 
-if(v4l2_helper_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+if(v4l2helper_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 	add_subdirectory(example)
 endif()
