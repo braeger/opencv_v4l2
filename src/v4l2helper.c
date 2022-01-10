@@ -45,6 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <poll.h>
 
 #include <linux/videodev2.h>
 #include "v4l2helper.h"
@@ -639,7 +640,7 @@ int v4l2helper_cam_close(v4l2helper_capture_t* cam)
 
 int v4l2helper_cam_get_frame(v4l2helper_capture_t *cam, v4l2helper_frame_t **pointer_to_frame)
 {
-	static const unsigned int max_timeout_retries = 10;
+	static const unsigned int max_timeout_retries = 10; //TODO this should be a parameter
 	unsigned int timeout_retries = 0;
 	*pointer_to_frame=NULL;
 	struct v4l2_buffer ret_buf;
@@ -658,18 +659,16 @@ int v4l2helper_cam_get_frame(v4l2helper_capture_t *cam, v4l2helper_frame_t **poi
 	}*/
 
 	for (;;) {
-		fd_set fds;
-		struct timeval tv;
+
 		int r;
 
-		FD_ZERO(&fds);
-		FD_SET(cam->fd, &fds);
-
 		/* Timeout. */
-		tv.tv_sec = 2;
-		tv.tv_usec = 0;
+		int timeout=2000;
+		struct pollfd pfd;
+		pfd.fd=cam->fd;
+		pfd.events = POLLIN | POLLRDNORM;
 
-		r = select(cam->fd + 1, &fds, NULL, NULL, &tv);
+		r = poll(&pfd, 1, timeout);
 
 		if (-1 == r) {
 			if (EINTR == errno)

@@ -44,6 +44,13 @@ typedef struct _v4l2helper_capture_s v4l2helper_capture_t;
 typedef struct _v4l2helper_frame_s v4l2helper_frame_t;
 
 /*
+struct v4lhelper_cam_open_params_t{
+	const char* const devname;
+	struct v4l2_pix_format format;
+	unsigned int num_requested_buffers;
+};*/
+
+/*
  * All functions except the create return 0 on success and a negative value in case of failure.
  */
 
