@@ -47,7 +47,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/ioctl.h>
 
 #include <linux/videodev2.h>
-#include "v4l2_helper.h"
+#include "v4l2helper.h"
 #include <stdbool.h>
 
 
