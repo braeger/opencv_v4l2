@@ -472,7 +472,7 @@ static int init_device(v4l2helper_capture_t* cam,unsigned int width, unsigned in
 	fmt.fmt.pix.width       = width;
 	fmt.fmt.pix.height      = height;
 	fmt.fmt.pix.pixelformat = format;
-	fmt.fmt.pix.field       = V4L2_FIELD_INTERLACED;
+	fmt.fmt.pix.field       = V4L2_FIELD_NONE;//V4L2_FIELD_INTERLACED;
 
 	if (-1 == xioctl(cam->fd, VIDIOC_S_FMT, &fmt))
 	{

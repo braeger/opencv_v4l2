@@ -5,7 +5,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
-
+#include <vector>
 
 #include "CImg.h"
 using namespace cimg_library;
@@ -20,6 +20,35 @@ unsigned int GetTickCount()
 	return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
 
+void yuyv2yuva8(unsigned char* yuva8,const unsigned char* yuyv,size_t N)
+{
+	N/=4; //every 4 bytes, load 2 pixels.
+	for(size_t i=0;i<N;i++)
+	{
+		const unsigned char* in_pair=yuyv+4*i;
+		unsigned char* out_pair=yuva8+8*i; //TODO probably implement this with words swaps and shifts but meh. portability.
+		out_pair[0]=in_pair[0]; //y0
+		out_pair[1]=in_pair[1]; //u
+		out_pair[2]=in_pair[3]; //v
+		out_pair[3]=0xFF;
+		out_pair[4]=in_pair[2]; //y1
+		out_pair[5]=in_pair[1]; //u
+		out_pair[6]=in_pair[3]; //v
+		out_pair[7]=0xFF;
+	}
+}
+void yuyv2y(unsigned char* y,const unsigned char* yuyv,size_t N)
+{
+	N/=4; //every 4 bytes, load 2 pixels.
+	for(size_t i=0;i<N;i++)
+	{
+		const unsigned char* in_pair=yuyv+4*i;
+		unsigned char* out_pair=y+2*i; //TODO probably implement this with words swaps and shifts but meh. portability.
+		out_pair[0]=in_pair[0]; //y0
+		out_pair[1]=in_pair[2]; //y1
+	}
+}
+
 int main(int argc, char **argv)
 {
 	std::string videodev = "/dev/video0";
@@ -30,6 +59,7 @@ int main(int argc, char **argv)
 	enum io_method IO_method = IO_METHOD_MMAP; // Also: IO_METHOD_USERPTR and IO_METHOD_MMAP
 
 	CImg<unsigned char> visu(width,height,1,4,0);
+	std::vector<unsigned char> out_buf(width*height*4);
 	CImgDisplay main_disp(visu,"preview");
 
 	v4l2helper_capture_t* cam=v4l2helper_cam_open(videodev.c_str(), width, height, pix_format, IO_method,0);
@@ -54,14 +84,19 @@ int main(int argc, char **argv)
 		v4l2helper_frame_get_data(frame,&ptr_data,&bytes_used);
 		cout << "BYTES USED: " << bytes_used << std::endl;
 
-
-		visu.assign(ptr_data,3,width,height,1);
-		if(visu.empty())
+		//every 4 bytes is 2 pixels. <--> width*height*(32 bpp_out/16 bpp_in) <-> 2
+		if(!ptr_data || bytes_used*2 != out_buf.size())
 		{
-			cout << "Img load failed" << endl;
 			break;
 		}
+
+		//yuyv2yuva8(out_buf.data(),ptr_data,bytes_used);
+		yuyv2y(out_buf.data(),ptr_data,bytes_used);
+
+		//https://www.codefull.net/2014/11/cimg-does-not-store-pixels-in-the-interleaved-format/
+		visu.assign(out_buf.data(), 1, width, height, 1, true);
 		visu.permute_axes("yzcx");
+
 //		visu.save("frame.jpg");
 		main_disp.display(visu);
 
