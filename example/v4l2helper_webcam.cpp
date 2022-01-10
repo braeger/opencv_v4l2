@@ -46,13 +46,13 @@ int main(int argc, char **argv)
 	// TODO: YUYV conversion for display issue: let's just write as an image file just to confirm.  
 	// But for live display adopt to v4l2_helper from : https://gist.github.com/MacDue/36199c3f3ca04bd9fd40a1bc2067ef72
 	size_t width = 640, height = 480; // default for YUYV;
-	enum io_method IO_method = IO_METHOD_MMAP; // Also: IO_METHOD_USERPTR and IO_METHOD_MMAP
+	//enum io_method IO_method; = IO_METHOD_MMAP; // Also: IO_METHOD_USERPTR and IO_METHOD_MMAP
 
 	CImg<unsigned char> visu(width,height,1,4);
 	std::vector<unsigned char> out_buf(width*height*4);
 	CImgDisplay main_disp(visu,"preview");
 
-	v4l2helper_capture_t* cam=v4l2helper_cam_open(videodev.c_str(), width, height, pix_format, IO_method,0);
+	v4l2helper_capture_t* cam=v4l2helper_cam_open(videodev.c_str(), width, height, pix_format,0);
 
 	if (!cam)
 	{

@@ -50,7 +50,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "v4l2helper.h"
 #include <stdbool.h>
 
-
+enum io_method {
+	IO_METHOD_READ = 1,
+	IO_METHOD_MMAP,
+	IO_METHOD_USERPTR
+};
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
 #define ERR -128 /* TODO: errors should be more specific */
@@ -573,8 +577,9 @@ static int open_device(v4l2helper_capture_t* cam,const char *dev_name)
 /**
  * Start of public helper functions
  */
-v4l2helper_capture_t* v4l2helper_cam_open(const char* devname, unsigned int width, unsigned int height, unsigned int format, enum io_method io_meth,unsigned int num_requested_buffers)
+v4l2helper_capture_t* v4l2helper_cam_open(const char* devname, unsigned int width, unsigned int height, unsigned int format, unsigned int num_requested_buffers)
 {
+	enum io_method io_meth = IO_METHOD_MMAP;
 
 	if(num_requested_buffers == 0)
 	{
@@ -732,6 +737,7 @@ int v4l2helper_frame_get_data(v4l2helper_frame_t *frame, unsigned char **pointer
 	{
 		*size = frame->frame_buf.bytesused;
 	}
+	return 0;
 }
 
 int v4l2helper_frame_release(v4l2helper_frame_t* frame)

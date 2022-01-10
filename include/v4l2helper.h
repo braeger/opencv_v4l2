@@ -40,12 +40,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern "C" {
 #endif
 
-enum io_method {
-	IO_METHOD_READ = 1,
-	IO_METHOD_MMAP,
-	IO_METHOD_USERPTR
-};
-
 typedef struct _v4l2helper_capture_s v4l2helper_capture_t;
 typedef struct _v4l2helper_frame_s v4l2helper_frame_t;
 
@@ -53,12 +47,17 @@ typedef struct _v4l2helper_frame_s v4l2helper_frame_t;
  * All functions except the create return 0 on success and a negative value in case of failure.
  */
 
+struct v4lhelper_cam_open_params_t{
+	const char* const devname;
+	struct v4l2_pix_format format;
+	unsigned int num_requested_buffers;
+};
+
 v4l2helper_capture_t* v4l2helper_cam_open(
 		const char* const devname,
 		unsigned int width,
 		unsigned int height,
 		unsigned int format,
-		enum io_method io_meth,
 		unsigned int num_requested_buffers
 );
 
